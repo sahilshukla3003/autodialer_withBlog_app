@@ -1,4 +1,4 @@
-text
+
 # 🚀 AI Autodialer & Blog Generator
 
 A complete FastAPI application with **AI-powered calling** and **automatic blog generation**.
@@ -46,7 +46,7 @@ mkdir -p data templates
 6. Run
 python main.py
 
-text
+
 
 ## 🔑 API Keys Setup
 
@@ -80,20 +80,20 @@ All data stored in JSON files:
 "make a call to +918001234567"
 "call +919876543210"
 
-text
+
 
 ### Test Blog Generation
 Title: "Python Best Practices"
 Description: "Tips for clean code"
 
-text
+
 
 ### Use Test Numbers
 **IMPORTANT**: Use 1-800 numbers for testing!
 +18001234567
 +18009876543
 
-text
+
 
 ## 🔌 API Endpoints
 
@@ -115,23 +115,23 @@ text
 
 curl http://localhost:8000/api/health
 
-text
+
 
 ## 📝 Usage Examples
 
 ### Upload Numbers (curl)
 curl -X POST http://localhost:8000/api/upload_numbers
--F "numbers_text=+918001234567
+-F "numbers_=+918001234567
 +918009876543"
 
-text
+
 
 ### Generate Article (curl)
 curl -X POST http://localhost:8000/api/generate_article
 -H "Content-Type: application/json"
 -d '{"title":"Python Tips","description":"Best practices"}'
 
-text
+
 
 ## ⚙️ Requirements
 
