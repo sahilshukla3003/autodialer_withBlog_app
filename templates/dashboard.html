@@ -1,0 +1,308 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Autodialer{% endblock %}
+
+{% block content %}
+<!-- Statistics -->
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="card stats-card">
+            <h6 class="text-muted"><i class="fas fa-list"></i> Total Numbers</h6>
+            <h2 class="text-primary" id="stat-total">{{ stats.total }}</h2>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card stats-card">
+            <h6 class="text-muted"><i class="fas fa-check-circle"></i> Completed</h6>
+            <h2 class="text-success" id="stat-completed">{{ stats.completed }}</h2>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card stats-card">
+            <h6 class="text-muted"><i class="fas fa-times-circle"></i> Failed</h6>
+            <h2 class="text-danger" id="stat-failed">{{ stats.failed }}</h2>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card stats-card">
+            <h6 class="text-muted"><i class="fas fa-clock"></i> Pending</h6>
+            <h2 class="text-warning" id="stat-pending">{{ stats.pending }}</h2>
+        </div>
+    </div>
+</div>
+
+<!-- AI Command Section -->
+<div class="ai-section">
+    <h4><i class="fas fa-robot"></i> AI Voice Command</h4>
+    <p class="lead mb-3">Try: "make a call to +918001234567" or "call +919876543210"</p>
+    <div class="input-group mb-3">
+        <input type="text" id="ai-command" class="form-control form-control-lg" 
+               placeholder="Enter your command..." autocomplete="off">
+        <button class="btn btn-light btn-lg btn-custom" onclick="executeAICommand()">
+            <i class="fas fa-paper-plane"></i> Execute
+        </button>
+    </div>
+    <div id="ai-response"></div>
+</div>
+
+<div class="row">
+    <!-- Upload & Controls -->
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <i class="fas fa-upload"></i> Upload Phone Numbers
+            </div>
+            <div class="card-body">
+                <form id="upload-form" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Upload CSV File</label>
+                        <input type="file" class="form-control" id="file-input" accept=".csv">
+                        <small class="text-muted">One phone number per line</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Or Paste Phone Numbers</label>
+                        <textarea class="form-control" id="numbers-text" rows="6" 
+                                  placeholder="+918001234567&#10;+918009876543&#10;+919876543210"></textarea>
+                        <small class="text-muted">One number per line. Use 1800 numbers for testing!</small>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100 btn-custom">
+                        <i class="fas fa-upload"></i> Upload Numbers
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-body">
+                <button class="btn btn-success btn-lg w-100 btn-custom mb-2" onclick="startBulkCall()">
+                    <i class="fas fa-phone-volume"></i> Start Bulk Calling
+                </button>
+                <button class="btn btn-warning w-100 btn-custom mb-2" onclick="simulateRandomCall()">
+                    <i class="fas fa-vial"></i> Test: Simulate Call (Dev Mode)
+                </button>
+                <button class="btn btn-info w-100 btn-custom mb-2" onclick="exportCalls()">
+                    <i class="fas fa-download"></i> Export to CSV
+                </button>
+                <button class="btn btn-danger w-100 btn-custom" onclick="clearAll()">
+                    <i class="fas fa-trash"></i> Clear All Numbers
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Calls -->
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <i class="fas fa-list"></i> Recent Calls
+            </div>
+            <div class="card-body" style="max-height: 600px; overflow-y: auto;">
+                {% if recent_calls %}
+                <table class="table table-sm table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Phone Number</th>
+                            <th>Status</th>
+                            <th>Duration</th>
+                        </tr>
+                    </thead>
+                    <tbody id="calls-table">
+                        {% for call in recent_calls %}
+                        <tr>
+                            <td><strong>{{ call.number }}</strong></td>
+                            <td>
+                                <span class="status-badge status-{{ call.status }}">
+                                    {{ call.status | upper }}
+                                </span>
+                            </td>
+                            <td>{{ call.duration }}s</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-phone-slash fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">No calls yet. Upload phone numbers to get started!</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Upload Form
+document.getElementById('upload-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const formData = new FormData();
+    const file = document.getElementById('file-input').files[0];
+    const numbersText = document.getElementById('numbers-text').value;
+    
+    if (file) formData.append('file', file);
+    if (numbersText) formData.append('numbers_text', numbersText);
+    
+    if (!file && !numbersText) {
+        showAlert('Please upload a file or paste numbers', 'warning');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/upload_numbers', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        showAlert(result.message, result.success ? 'success' : 'danger');
+        
+        if (result.success) {
+            document.getElementById('file-input').value = '';
+            document.getElementById('numbers-text').value = '';
+            setTimeout(() => location.reload(), 1500);
+        }
+    } catch (error) {
+        showAlert('Error uploading numbers', 'danger');
+    }
+});
+
+// AI Command
+async function executeAICommand() {
+    const command = document.getElementById('ai-command').value.trim();
+    
+    if (!command) {
+        showAlert('Please enter a command', 'warning');
+        return;
+    }
+    
+    console.log('Executing:', command);
+    
+    try {
+        const response = await fetch('/api/ai_call', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command: command })
+        });
+        
+        const result = await response.json();
+        console.log('Result:', result);
+        
+        showAlert(result.message, result.success ? 'success' : 'danger');
+        
+        if (result.success) {
+            document.getElementById('ai-command').value = '';
+            setTimeout(() => location.reload(), 2000);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showAlert('Error executing command', 'danger');
+    }
+}
+
+// Enter key support
+document.getElementById('ai-command').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') executeAICommand();
+});
+
+// Bulk Call
+async function startBulkCall() {
+    if (!confirm('Start calling all pending numbers?')) return;
+    
+    try {
+        const response = await fetch('/api/bulk_call', { method: 'POST' });
+        const result = await response.json();
+        showAlert(result.message, result.success ? 'success' : 'danger');
+        
+        if (result.success) {
+            setTimeout(() => location.reload(), 1500);
+        }
+    } catch (error) {
+        showAlert('Error starting bulk call', 'danger');
+    }
+}
+
+// Simulate Call (for testing)
+async function simulateRandomCall() {
+    const calls = JSON.parse('{{ recent_calls | tojson | safe }}');
+    if (calls.length === 0) {
+        showAlert('No calls to simulate. Upload numbers first!', 'warning');
+        return;
+    }
+    
+    const randomCall = calls[Math.floor(Math.random() * calls.length)];
+    
+    try {
+        const response = await fetch(`/api/simulate_call_complete/${randomCall.id}`, { 
+            method: 'POST' 
+        });
+        const result = await response.json();
+        showAlert(result.message, result.success ? 'success' : 'danger');
+        
+        if (result.success) {
+            setTimeout(() => location.reload(), 1000);
+        }
+    } catch (error) {
+        showAlert('Error simulating call', 'danger');
+    }
+}
+
+// Export CSV
+async function exportCalls() {
+    try {
+        const response = await fetch('/api/export_calls');
+        const result = await response.json();
+        
+        if (result.success) {
+            const blob = new Blob([result.csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `autodialer_calls_${new Date().getTime()}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            showAlert('✓ CSV exported successfully', 'success');
+        } else {
+            showAlert('Error exporting CSV', 'danger');
+        }
+    } catch (error) {
+        showAlert('Error exporting CSV', 'danger');
+    }
+}
+
+// Clear All
+function clearAll() {
+    if (!confirm('Delete ALL phone numbers? This cannot be undone!')) return;
+    
+    fetch('/api/clear_all', { method: 'POST' })
+        .then(response => response.json())
+        .then(result => {
+            showAlert(result.message, result.success ? 'success' : 'danger');
+            if (result.success) {
+                setTimeout(() => location.reload(), 1500);
+            }
+        })
+        .catch(() => showAlert('Error clearing numbers', 'danger'));
+}
+
+// Auto-refresh stats every 5 seconds
+setInterval(async () => {
+    try {
+        const stats = await apiCall('/api/call_stats');
+        document.getElementById('stat-total').textContent = stats.total;
+        document.getElementById('stat-completed').textContent = stats.completed;
+        document.getElementById('stat-failed').textContent = stats.failed;
+        document.getElementById('stat-pending').textContent = stats.pending;
+    } catch (error) {
+        console.error('Stats refresh error:', error);
+    }
+}, 5000);
+
+// Full page refresh every 30 seconds
+setInterval(() => location.reload(), 30000);
+</script>
+{% endblock %}

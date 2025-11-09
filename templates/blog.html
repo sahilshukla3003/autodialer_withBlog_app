@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+
+{% block title %}Blog - Article Generator{% endblock %}
+
+{% block content %}
+<!-- AI Generator Section -->
+<div class="ai-section mb-5">
+    <h3><i class="fas fa-robot"></i> AI Article Generator (Gemini)</h3>
+    <p class="lead">Generate professional blog articles automatically using Google Gemini AI</p>
+    
+    <ul class="nav nav-tabs mb-4" role="tablist" style="border-color: rgba(255,255,255,0.3);">
+        <li class="nav-item">
+            <a class="nav-link active" data-bs-toggle="tab" href="#single" style="color: white;">
+                <i class="fas fa-file"></i> Single Article
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#bulk" style="color: white;">
+                <i class="fas fa-files"></i> Bulk Generate
+            </a>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+        <!-- Single Article -->
+        <div class="tab-pane fade show active" id="single">
+            <form id="single-form">
+                <div class="mb-3">
+                    <input type="text" class="form-control form-control-lg" id="title" 
+                           placeholder="Article Title (e.g., 'Python Best Practices for 2025')" required>
+                </div>
+                <div class="mb-3">
+                    <textarea class="form-control" id="description" rows="3" 
+                              placeholder="Optional: Additional details or context"></textarea>
+                </div>
+                <button type="submit" class="btn btn-light btn-lg btn-custom w-100">
+                    <i class="fas fa-magic"></i> Generate Article
+                </button>
+            </form>
+        </div>
+
+        <!-- Bulk Generate -->
+        <div class="tab-pane fade" id="bulk">
+            <p class="mb-3" style="color: rgba(255,255,255,0.8);">
+                Format: <code style="background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px;">Title | Description</code> (one per line)
+            </p>
+            <form id="bulk-form">
+                <div class="mb-3">
+                    <textarea class="form-control" id="bulk-prompt" rows="8" 
+                              placeholder="Python Best Practices | Tips for writing clean code&#10;FastAPI Tutorial | Building modern APIs with Python&#10;Docker Guide | Container basics for developers"></textarea>
+                </div>
+                <button type="submit" class="btn btn-light btn-lg btn-custom w-100">
+                    <i class="fas fa-magic"></i> Generate All Articles
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div id="generation-status" class="mt-4"></div>
+</div>
+
+<!-- Blog Posts Grid -->
+<h3 class="mb-4">
+    <i class="fas fa-newspaper"></i> Published Articles 
+    <span class="badge bg-primary">{{ posts|length }}</span>
+</h3>
+
+{% if posts %}
+<div class="row">
+    {% for post in posts %}
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">{{ post.title }}</h5>
+                <p class="card-text text-muted small">
+                    {{ post.description[:150] }}{% if post.description|length > 150 %}...{% endif %}
+                </p>
+                <hr>
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted">
+                        <i class="fas fa-eye"></i> {{ post.views }} views
+                    </small>
+                    <small class="text-muted">
+                        <i class="fas fa-calendar"></i> {{ post.created_at[:10] }}
+                    </small>
+                </div>
+            </div>
+            <div class="card-footer bg-light">
+                <a href="/blog/{{ post.slug }}" class="btn btn-sm btn-primary btn-custom">
+                    <i class="fas fa-book-open"></i> Read Article
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-info">
+    <i class="fas fa-info-circle"></i> 
+    <strong>No articles yet!</strong> 
+    Generate your first article using the AI generator above.
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Single Article Generation
+document.getElementById('single-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const title = document.getElementById('title').value.trim();
+    const description = document.getElementById('description').value.trim();
+    const status = document.getElementById('generation-status');
+    
+    if (!title) {
+        showAlert('Please enter a title', 'warning');
+        return;
+    }
+    
+    console.log('Generating:', title);
+    
+    status.innerHTML = `<div class="alert alert-info">
+        <i class="fas fa-spinner fa-spin"></i> Generating article... This may take 30-60 seconds.
+    </div>`;
+    
+    try {
+        const response = await fetch('/api/generate_article', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, description })
+        });
+        
+        const result = await response.json();
+        console.log('Result:', result);
+        
+        if (result.success) {
+            status.innerHTML = `<div class="alert alert-success">
+                <i class="fas fa-check-circle"></i> <strong>Article generated!</strong> 
+                <a href="/blog/${result.slug}" class="alert-link">View Article →</a>
+            </div>`;
+            document.getElementById('title').value = '';
+            document.getElementById('description').value = '';
+            setTimeout(() => location.reload(), 2500);
+        } else {
+            status.innerHTML = `<div class="alert alert-danger">
+                <i class="fas fa-times-circle"></i> ${result.message}
+            </div>`;
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        status.innerHTML = `<div class="alert alert-danger">
+            <i class="fas fa-times-circle"></i> Network error: ${error.message}
+        </div>`;
+    }
+});
+
+// Bulk Article Generation
+document.getElementById('bulk-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const prompt = document.getElementById('bulk-prompt').value.trim();
+    const status = document.getElementById('generation-status');
+    
+    if (!prompt) {
+        showAlert('Please enter article titles', 'warning');
+        return;
+    }
+    
+    console.log('Bulk generating...');
+    
+    status.innerHTML = `<div class="alert alert-info">
+        <i class="fas fa-spinner fa-spin"></i> Generating articles... This will take several minutes.
+    </div>`;
+    
+    try {
+        const response = await fetch('/api/generate_articles_bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt })
+        });
+        
+        const result = await response.json();
+        console.log('Bulk result:', result);
+        
+        if (result.success) {
+            let html = `<div class="alert alert-success">
+                <i class="fas fa-check-circle"></i> <strong>${result.message}</strong>
+            </div><div class="list-group">`;
+            
+            result.results.forEach(r => {
+                const iconClass = r.success ? 'fa-check-circle text-success' : 'fa-times-circle text-danger';
+                const link = r.success ? 
+                    `<a href="/blog/${r.slug}" class="btn btn-sm btn-primary">View →</a>` : 
+                    `<small class="text-danger">${r.error}</small>`;
+                
+                html += `<div class="list-group-item d-flex justify-content-between align-items-center">
+                    <span><i class="fas ${iconClass}"></i> <strong>${r.title}</strong></span>
+                    ${link}
+                </div>`;
+            });
+            
+            html += '</div>';
+            status.innerHTML = html;
+            
+            setTimeout(() => location.reload(), 3000);
+        } else {
+            status.innerHTML = `<div class="alert alert-danger">
+                <i class="fas fa-times-circle"></i> ${result.message}
+            </div>`;
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        status.innerHTML = `<div class="alert alert-danger">
+            <i class="fas fa-times-circle"></i> Network error: ${error.message}
+        </div>`;
+    }
+});
+</script>
+{% endblock %}
